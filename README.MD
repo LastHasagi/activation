@@ -63,3 +63,9 @@ O Z3R0 Activator é uma ferramenta que simula um servidor KMS (Key Management Se
 - **requirements.txt**: Arquivo de dependências do Python.
 - **.gitignore**: Arquivo que especifica quais arquivos e diretórios devem ser ignorados pelo Git.
 - **README.md**: Este arquivo de documentação.
+
+## Considerações e Créditos
+
+1. Gostaria de informar que esse projeto foi desenvolvido em parceria com Michel C. Quadros, obrigado pelas ideias e testes.
+
+2. Foi utilizado nesse projeto o vlmcsd desenvolvido pelo Wind4, muito obrigado por disponibilizar opensource os binários necessários.

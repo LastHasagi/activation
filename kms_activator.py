@@ -1,122 +1,159 @@
 import os
-import threading
-import time
-import random
-import string
-from flask import Flask, request
-import logging
+import subprocess
+import platform
 import sys
+import ctypes
+import time
 
-RESET = "\033[0m"
-GREEN = "\033[92m"
-YELLOW = "\033[93m"
-BLUE = "\033[94m"
-RED = "\033[91m"
+# Detectar se o terminal suporta cores ANSI (evitar caracteres estranhos no CMD padrão do Windows)
+SUPORTE_ANSI = sys.stdout.isatty() and os.name != "nt"
 
-app = Flask(__name__)
+# Definir as cores apenas se ANSI for suportado
+RESET = "\033[0m" if SUPORTE_ANSI else ""
+GREEN = "\033[92m" if SUPORTE_ANSI else ""
+YELLOW = "\033[93m" if SUPORTE_ANSI else ""
+BLUE = "\033[94m" if SUPORTE_ANSI else ""
+RED = "\033[91m" if SUPORTE_ANSI else ""
 
-log = logging.getLogger('werkzeug')
-log.setLevel(logging.ERROR)
+# Lista de servidores KMS públicos
+KMS_SERVERS = [
+    "kms8.msguides.com",
+    "kms.digiboy.ir",
+    "kms.lotro.cc",
+    "kms.cangshui.net"
+]
 
-app.logger.setLevel(logging.ERROR)
+# Dicionário de chaves KMS genéricas atualizado
+KMS_KEYS = {
+    "Microsoft Windows 11 Pro": "W269N-WFGWX-YVC9B-4J6C9-T83GX",
+    "Microsoft Windows 11 Home": "TX9XD-98N7V-6WMQ6-BX7FG-H8Q99",
+    "Microsoft Windows 10 Pro": "W269N-WFGWX-YVC9B-4J6C9-T83GX",
+    "Microsoft Windows 10 Home": "TX9XD-98N7V-6WMQ6-BX7FG-H8Q99",
+    "Microsoft Windows 10 Education": "NW6C2-QMPVW-D7KKK-3GKT6-VCFB2",
+    "Microsoft Windows 10 Enterprise": "NPPR9-FWDCX-D2C8J-H872K-2YT43",
+    "Microsoft Windows 8.1 Pro": "GCRJD-8NW9H-F2CDX-CCM8D-9D6T9",
+    "Microsoft Windows 8.1 Enterprise": "MHF9N-XY6XB-WVXMC-BTDCT-MKKG7",
+    "Microsoft Windows 8 Pro": "NG4HW-VH26C-733KW-K6F98-J8CK4",
+    "Microsoft Windows 8 Enterprise": "32JNW-9KQ84-P47T8-D8GGY-CWCK7",
+    "Microsoft Windows 7 Professional": "FJ82H-XT6CR-J8D7P-XQJJ2-GPDD4",
+    "Microsoft Windows 7 Enterprise": "33PXH-7Y6KF-2VJC9-XBBR8-HVTHH"
+}
 
-def generate_license_key():
-    """Gera uma chave de licença no formato XXXXX-XXXXX-XXXXX-XXXXX-XXXXX"""
-    segments = []
-    for _ in range(5):
-        segment = ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
-        segments.append(segment)
-    return '-'.join(segments)
+def run_as_admin():
+    """Reinicia o script com permissões de administrador, se necessário."""
+    if ctypes.windll.shell32.IsUserAnAdmin():
+        return  
+    print(f"{YELLOW}[INFO] Reexecutando como administrador...{RESET}")
+    ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
+    sys.exit()
 
-@app.route('/kms', methods=['POST'])
-def kms_activation():
-    """Simula uma resposta do servidor KMS"""
-    data = request.json
-    if data.get("request") == "activation":
-        KMS_RESPONSE = {
-            "status": "success",
-            "message": "Ativação concluída com sucesso!",
-            "license_key": generate_license_key()
-        }
-        return KMS_RESPONSE
-    else:
-        return {"status": "error", "message": "Requisição inválida"}
+run_as_admin()
 
-def start_kms_server():
-    """Executa o servidor KMS em uma thread separada"""
-    print(f"{BLUE}[INFO] Iniciando conexão ao Servidor...{RESET}")
-    time.sleep(2)
+def get_windows_version():
+    """Detecta a versão exata do Windows de forma compatível com Windows 10 e 11."""
+    try:
+        result = subprocess.check_output(
+            ["powershell", "-Command", "(Get-CimInstance Win32_OperatingSystem).Caption"],
+            universal_newlines=True
+        ).strip()
 
-    app.run(host="0.0.0.0", port=1688, debug=False, use_reloader=False)
+        if result in KMS_KEYS:
+            return result
+
+        print(f"{RED}[ERRO] Versão do Windows não encontrada no banco de chaves: {result}{RESET}")
+        return None
+    except Exception as e:
+        print(f"{RED}[ERRO] Falha ao detectar a versão do Windows! {e}{RESET}")
+        return None
 
 def activate_windows():
-    """Ativação do Windows via KMS"""
-    print(f"{YELLOW}[INFO] Conectando ao servidor Z3R0-Windows-activator...{RESET}")
-    os.system("slmgr /skms 127.0.0.1")
+    """Ativa o Windows via KMS usando servidores públicos"""
+    edition = get_windows_version()
+    if not edition:
+        print(f"{RED}[ERRO] Não foi possível detectar a versão do Windows.{RESET}")
+        return
 
-    print(f"{YELLOW}[INFO] Solicitando Activation-Key...{RESET}")
-    os.system("slmgr /ato")
+    kms_key = KMS_KEYS.get(edition, None)
+    if not kms_key:
+        print(f"{RED}[ERRO] Versão do Windows não suportada para ativação via KMS: {edition}{RESET}")
+        return
 
-    print(f"{GREEN}[SUCESSO] Windows ativado com sucesso!{RESET}")
+    print(f"{YELLOW}[INFO] Aplicando chave KMS para {edition}...{RESET}")
+    os.system(f"slmgr /ipk {kms_key}")
 
-def remove_windows_license():
-    """Remove a licença atual do Windows"""
-    print(f"{RED}[INFO] Removendo licença atual do Windows...{RESET}")
-    os.system("slmgr /upk")
-    os.system("slmgr /cpky")
-    print(f"{GREEN}[SUCESSO] Licença removida!{RESET}")
+    for server in KMS_SERVERS:
+        print(f"{YELLOW}[INFO] Tentando ativação no servidor: {server}{RESET}")
+        os.system(f"slmgr /skms {server}")
+        time.sleep(2)
+        result = os.system("slmgr /ato")
+        time.sleep(2)
+
+        if result == 0:  # Se ativou com sucesso, para aqui
+            print(f"{GREEN}[SUCESSO] {edition} ativado com sucesso usando {server}!{RESET}")
+            return  
+
+    print(f"{RED}[ERRO] Nenhum servidor KMS conseguiu ativar o Windows.{RESET}")
 
 def activate_office():
-    """Ativação do Office via KMS"""
-    print(f"{YELLOW}[INFO] Conectando ao servidor Z3R0-Office-activator...{RESET}")
-    os.system('cscript //nologo "C:\\Program Files\\Microsoft Office\\Office16\\OSPP.VBS" /sethst:127.0.0.1')
-    
-    print(f"{YELLOW}[INFO] Aplicando chave KMS para o Office...{RESET}")
-    os.system('cscript //nologo "C:\\Program Files\\Microsoft Office\\Office16\\OSPP.VBS" /inpkey:XXXXX-XXXXX-XXXXX-XXXXX-XXXXX')
+    """Ativa o Microsoft Office via KMS usando servidores públicos"""
+    print(f"{YELLOW}[INFO] Aplicando chave KMS...{RESET}")
+    os.system(r'cscript //nologo "C:\Program Files\Microsoft Office\Office16\OSPP.VBS" /inpkey:XXXXX-XXXXX-XXXXX-XXXXX-XXXXX')
 
-    print(f"{YELLOW}[INFO] Solicitando ativação do Office...{RESET}")
-    os.system('cscript //nologo "C:\\Program Files\\Microsoft Office\\Office16\\OSPP.VBS" /act')
+    for server in KMS_SERVERS:
+        print(f"{YELLOW}[INFO] Tentando ativação do Office no servidor: {server}{RESET}")
+        os.system(rf'cscript //nologo "C:\Program Files\Microsoft Office\Office16\OSPP.VBS" /sethst:{server}')
+        time.sleep(2)
+        result = os.system(r'cscript //nologo "C:\Program Files\Microsoft Office\Office16\OSPP.VBS" /act')
+        time.sleep(2)
 
-    print(f"{GREEN}[SUCESSO] Microsoft Office ativado com sucesso!{RESET}")
+        if result == 0:  # Se ativou com sucesso, para aqui
+            print(f"{GREEN}[SUCESSO] Office ativado com sucesso usando {server}!{RESET}")
+            return  
 
-if __name__ == '__main__':
-    print(f"{BLUE}======================================={RESET}")
-    print(f"{GREEN}        🔥 Z3R0 ACTIVATOR 🔥{RESET}")
-    print(f"{BLUE}=======================================\n{RESET}")
+    print(f"{RED}[ERRO] Nenhum servidor KMS conseguiu ativar o Office.{RESET}")
 
-    threading.Thread(target=start_kms_server, daemon=True).start()
+def remove_windows_license():
+    """Remove a licença atual do Windows e limpa o histórico de chaves"""
+    print(f"{YELLOW}[INFO] Removendo licença do Windows...{RESET}")
+    os.system("slmgr /upk")  # Remove a chave de produto instalada
+    os.system("slmgr /cpky")  # Remove a chave do registro
+    os.system("slmgr /rearm")  # Reseta o status da ativação
+    os.system("net stop sppsvc && net start sppsvc")  # Reinicia o serviço de licenciamento
 
-    time.sleep(0.5)
-    
-    print(f"{GREEN}        STARTING SERVER... {RESET}")
-    
-    time.sleep(1.5)
-    
-    print(f"{BLUE}=======================================\n{RESET}")
-    print(f"{YELLOW}[INFO] Conexão bem sucedida! {RESET}")
-    time.sleep(0.2)
-    print(f"{YELLOW}[INFO] Host encontrado!{RESET}\n")
-    print(f"{YELLOW}[INFO] Aguardando solicitações de ativação...{RESET}\n")
+    print(f"{GREEN}[SUCESSO] Licença removida e histórico limpo!{RESET}")
 
-    print(f"{YELLOW}[MENU] Escolha uma opção:{RESET}")
-    print(f"1️⃣ - Ativar Windows")
-    print(f"2️⃣ - Ativar Office")
-    print(f"3️⃣ - Ativar Ambos")
-    print(f"4️⃣ - Remover Licença Atual do Windows\n")
+def menu():
+    """Exibe o menu e permite múltiplas execuções"""
+    while True:
+        os.system("cls" if os.name == "nt" else "clear")  # Limpa a tela
 
-    opcao = input(f"{BLUE}Digite sua escolha (1, 2, 3 ou 4): {RESET}")
+        print("=" * 40)
+        print("🔥 Z3R0 ACTIVATOR 🔥".center(40))
+        print("=" * 40)
 
-    if opcao == "1":
-        activate_windows()
-    elif opcao == "2":
-        activate_office()
-    elif opcao == "3":
-        activate_windows()
-        activate_office()
-    elif opcao == "4":
-        remove_windows_license()
-    else:
-        print(f"{RED}[ERRO] Opção inválida!{RESET}")
+        print("\n[MENU] Escolha uma opção:")
+        print("1️⃣ - Ativar Windows")
+        print("2️⃣ - Ativar Office")
+        print("3️⃣ - Ativar Ambos")
+        print("4️⃣ - Remover Licença Atual")
+        print("5️⃣ - Sair\n")
 
-    print(f"\n{GREEN}✅ Processo concluído! Pressione ENTER para sair.{RESET}")
-    input()
+        opcao = input("Digite sua escolha (1, 2, 3, 4 ou 5): ")
+
+        if opcao == "1":
+            activate_windows()
+        elif opcao == "2":
+            activate_office()
+        elif opcao == "3":
+            activate_windows()
+            activate_office()
+        elif opcao == "4":
+            remove_windows_license()
+        elif opcao == "5":
+            print("[INFO] Programa encerrado!")
+            sys.exit()
+        else:
+            print(f"{RED}[ERRO] Opção inválida!{RESET}")
+        time.sleep(2)
+
+menu()
