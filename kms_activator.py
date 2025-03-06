@@ -132,11 +132,11 @@ def menu():
         print("=" * 40)
 
         print("\n[MENU] Escolha uma opção:")
-        print("1️⃣ - Ativar Windows")
-        print("2️⃣ - Ativar Office")
-        print("3️⃣ - Ativar Ambos")
-        print("4️⃣ - Remover Licença Atual")
-        print("5️⃣ - Sair\n")
+        print("1️ - Ativar Windows")
+        print("2️ - Ativar Office")
+        print("3️- Ativar Ambos")
+        print("4️ - Remover Licença Atual")
+        print("5️ - Sair\n")
 
         opcao = input("Digite sua escolha (1, 2, 3, 4 ou 5): ")
 
@@ -150,7 +150,11 @@ def menu():
         elif opcao == "4":
             remove_windows_license()
         elif opcao == "5":
+            print("[INFO] Encerrando programa...")
+            time.sleep(2)
             print("[INFO] Programa encerrado!")
+            print("[INFO] Obrigado por usar o Z3R0 ACTIVATOR!")
+            time.sleep(2)
             sys.exit()
         else:
             print(f"{RED}[ERRO] Opção inválida!{RESET}")
